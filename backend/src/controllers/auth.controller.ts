@@ -1,165 +1,160 @@
 import { Request, Response } from 'express';
-import { getRepository } from 'typeorm';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { User } from '../entities/User';
-import { Role } from '../entities/Role';
+
+const prisma = new PrismaClient();
 
 export class AuthController {
-  static login = async (req: Request, res: Response) => {
+  public static async login(req: Request, res: Response): Promise<void> {
     try {
       const { username, password } = req.body;
 
-      if (!username || !password) {
-        return res.status(400).json({ message: 'Username and password are required' });
-      }
-
-      const userRepository = getRepository(User);
-      const user = await userRepository.findOne({
+      const user = await prisma.user.findUnique({
         where: { username },
-        relations: ['role']
       });
 
       if (!user) {
-        return res.status(401).json({ message: 'Invalid credentials' });
+        res.status(401).json({ error: 'Invalid credentials' });
+        return;
       }
 
-      const validPassword = await user.validatePassword(password);
-      if (!validPassword) {
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
+      const isValidPassword = await bcrypt.compare(password, user.password);
 
-      if (!user.isActive) {
-        return res.status(401).json({ message: 'User is inactive' });
+      if (!isValidPassword) {
+        res.status(401).json({ error: 'Invalid credentials' });
+        return;
       }
 
       const token = jwt.sign(
-        { userId: user.id, role: user.role.name },
-        process.env.JWT_SECRET || 'your_jwt_secret_key',
-        { expiresIn: '24h' }
+        { userId: user.id, username: user.username },
+        process.env.JWT_SECRET || 'your-secret-key',
+        { expiresIn: '1d' }
       );
 
-      return res.json({
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role
-        }
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 1 day
+      });
+
+      res.json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
       });
     } catch (error) {
-      return res.status(500).json({ message: 'Internal server error' });
+      console.error('Login error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-  };
+  }
 
-  static register = async (req: Request, res: Response) => {
+  public static async register(req: Request, res: Response): Promise<void> {
     try {
-      const { username, password, fullName, email, roleId } = req.body;
+      const { username, password, email, role } = req.body;
 
-      if (!username || !password || !fullName || !email || !roleId) {
-        return res.status(400).json({ message: 'All fields are required' });
-      }
-
-      const userRepository = getRepository(User);
-      const roleRepository = getRepository(Role);
-
-      const existingUser = await userRepository.findOne({
-        where: [{ username }, { email }]
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ username }, { email }],
+        },
       });
 
       if (existingUser) {
-        return res.status(400).json({ message: 'Username or email already exists' });
+        res.status(400).json({ error: 'Username or email already exists' });
+        return;
       }
 
-      const role = await roleRepository.findOne({ where: { id: roleId } });
-      if (!role) {
-        return res.status(400).json({ message: 'Role not found' });
-      }
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-      const user = new User();
-      user.username = username;
-      user.password = password;
-      user.fullName = fullName;
-      user.email = email;
-      user.role = role;
+      const user = await prisma.user.create({
+        data: {
+          username,
+          password: hashedPassword,
+          email,
+          role,
+        },
+      });
 
-      await userRepository.save(user);
-
-      return res.status(201).json({
-        message: 'User registered successfully',
-        user: {
-          id: user.id,
-          username: user.username,
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role
-        }
+      res.status(201).json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
       });
     } catch (error) {
-      return res.status(500).json({ message: 'Internal server error' });
+      console.error('Registration error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-  };
+  }
 
-  static changePassword = async (req: Request, res: Response) => {
+  public static async logout(req: Request, res: Response): Promise<void> {
+    try {
+      res.clearCookie('token');
+      res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  public static async getCurrentUser(req: Request, res: Response): Promise<void> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: (req as any).user.userId },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          role: true,
+        },
+      });
+
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      res.json(user);
+    } catch (error) {
+      console.error('Get current user error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  public static async changePassword(req: Request, res: Response): Promise<void> {
     try {
       const { currentPassword, newPassword } = req.body;
-      const userId = req.user?.id;
+      const userId = (req as any).user.userId;
 
-      if (!userId || !currentPassword || !newPassword) {
-        return res.status(400).json({ message: 'All fields are required' });
-      }
-
-      const userRepository = getRepository(User);
-      const user = await userRepository.findOne({ where: { id: userId } });
-
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      const validPassword = await user.validatePassword(currentPassword);
-      if (!validPassword) {
-        return res.status(401).json({ message: 'Current password is incorrect' });
-      }
-
-      user.password = newPassword;
-      await userRepository.save(user);
-
-      return res.json({ message: 'Password changed successfully' });
-    } catch (error) {
-      return res.status(500).json({ message: 'Internal server error' });
-    }
-  };
-
-  static me = async (req: Request, res: Response) => {
-    try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({ message: 'Not authenticated' });
-      }
-
-      const userRepository = getRepository(User);
-      const user = await userRepository.findOne({
+      const user = await prisma.user.findUnique({
         where: { id: userId },
-        relations: ['role']
       });
 
       if (!user) {
-        return res.status(404).json({ message: 'User not found' });
+        res.status(404).json({ error: 'User not found' });
+        return;
       }
 
-      return res.json({
-        user: {
-          id: user.id,
-          username: user.username,
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role
-        }
+      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+
+      if (!isValidPassword) {
+        res.status(401).json({ error: 'Current password is incorrect' });
+        return;
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
       });
+
+      res.json({ message: 'Password changed successfully' });
     } catch (error) {
-      return res.status(500).json({ message: 'Internal server error' });
+      console.error('Change password error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-  };
+  }
 }
