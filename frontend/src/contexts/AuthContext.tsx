@@ -4,20 +4,15 @@ import axios from 'axios';
 interface User {
   id: number;
   username: string;
-  fullName: string;
   email: string;
-  role: {
-    id: number;
-    name: string;
-    permissions: string[];
-  };
+  role: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
 }
 
@@ -35,29 +30,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Configure axios defaults
+  axios.defaults.baseURL = 'http://localhost:10100';
+  axios.defaults.withCredentials = true;
+
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      checkAuthStatus();
-    } else {
-      setLoading(false);
-    }
+    checkAuthStatus();
   }, []);
 
   const checkAuthStatus = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No token found');
-      }
-
-      const response = await axios.get('http://localhost:10100/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setUser(response.data.user);
+      const response = await axios.get('/api/auth/me');
+      setUser(response.data);
     } catch (error) {
-      localStorage.removeItem('token');
       setUser(null);
     } finally {
       setLoading(false);
@@ -66,22 +51,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await axios.post('http://localhost:10100/api/auth/login', {
+      const response = await axios.post('/api/auth/login', {
         username,
         password
       });
-
-      const { token, user } = response.data;
-      localStorage.setItem('token', token);
-      setUser(user);
-    } catch (error) {
-      throw error;
+      setUser(response.data);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Login failed');
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await axios.post('/api/auth/logout');
+      setUser(null);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
   const value = {
