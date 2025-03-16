@@ -6,9 +6,10 @@ import Layout from '../components/Layout';
 const columns: GridColDef[] = [
   { field: 'id', headerName: 'ID', width: 90 },
   { field: 'name', headerName: 'Name', width: 200 },
-  { field: 'description', headerName: 'Description', width: 300 },
+  { field: 'description', headerName: 'Description', width: 200 },
   { field: 'price', headerName: 'Price', width: 130, type: 'number' },
   { field: 'quantity', headerName: 'Quantity', width: 130, type: 'number' },
+  { field: 'category', headerName: 'Category', width: 130 },
 ];
 
 const Items: React.FC = () => {
