@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   // Configure axios defaults
-  axios.defaults.baseURL = 'http://localhost:10100';
+  axios.defaults.baseURL = 'http://localhost:3000';
   axios.defaults.withCredentials = true;
 
   useEffect(() => {
@@ -43,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await axios.get('/api/auth/me');
       setUser(response.data);
     } catch (error) {
+      console.error('Auth check error:', error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -55,8 +56,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username,
         password
       });
+      
+      if (response.data.error) {
+        throw new Error(response.data.error);
+      }
+      
       setUser(response.data);
     } catch (error: any) {
+      console.error('Login error:', error);
       throw new Error(error.response?.data?.error || 'Login failed');
     }
   };
