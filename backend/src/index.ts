@@ -1,10 +1,9 @@
-import 'reflect-metadata';
 import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
-import { createConnection } from 'typeorm';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import authRouter from './routes/auth.routes';
 import { userRouter } from './routes/user.routes';
-import { authRouter } from './routes/auth.routes';
 import { itemRouter } from './routes/item.routes';
 import { clientRouter } from './routes/client.routes';
 import { supplierRouter } from './routes/supplier.routes';
@@ -17,10 +16,15 @@ import { stockRouter } from './routes/stock.routes';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 10100;
+const port = process.env.PORT || 10100;
 
-app.use(cors());
+// Middleware
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true,
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // Routes
 app.use('/api/auth', authRouter);
@@ -34,14 +38,12 @@ app.use('/api/cash', cashRouter);
 app.use('/api/expenses', expenseRouter);
 app.use('/api/stock', stockRouter);
 
-// Database connection
-createConnection()
-  .then(() => {
-    console.log('Database connected successfully');
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Error connecting to the database:', error);
-  });
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
