@@ -1,98 +1,85 @@
-import React, { useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import React from 'react';
 import {
   AppBar,
   Box,
   CssBaseline,
-  Divider,
   Drawer,
   IconButton,
   List,
   ListItem,
-  ListItemButton,
   ListItemIcon,
   ListItemText,
   Toolbar,
   Typography,
-  Button
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   Inventory as InventoryIcon,
   People as PeopleIcon,
-  LocalShipping as SupplierIcon,
-  ShoppingCart as PurchaseIcon,
-  Storefront as SalesIcon,
-  AttachMoney as CashIcon,
-  Receipt as ExpenseIcon,
-  Storage as StockIcon,
-  Group as UsersIcon,
-  Logout as LogoutIcon
+  LocalShipping as LocalShippingIcon,
+  ShoppingCart as ShoppingCartIcon,
+  AttachMoney as AttachMoneyIcon,
+  Receipt as ReceiptIcon,
+  Storage as StorageIcon,
+  Group as GroupIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+
+interface LayoutProps {
+  children: React.ReactNode;
+}
 
 const drawerWidth = 240;
 
-const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  { text: 'Items', icon: <InventoryIcon />, path: '/items' },
-  { text: 'Clients', icon: <PeopleIcon />, path: '/clients' },
-  { text: 'Suppliers', icon: <SupplierIcon />, path: '/suppliers' },
-  { text: 'Purchases', icon: <PurchaseIcon />, path: '/purchases' },
-  { text: 'Sales', icon: <SalesIcon />, path: '/sales' },
-  { text: 'Cash', icon: <CashIcon />, path: '/cash' },
-  { text: 'Expenses', icon: <ExpenseIcon />, path: '/expenses' },
-  { text: 'Stock', icon: <StockIcon />, path: '/stock' },
-  { text: 'Users', icon: <UsersIcon />, path: '/users' }
-];
-
-const Layout: React.FC = () => {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const { logout, user } = useAuth();
+const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const [mobileOpen, setMobileOpen] = React.useState(false);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleNavigation = (path: string) => {
-    navigate(path);
-    setMobileOpen(false);
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const menuItems = [
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: 'Items', icon: <InventoryIcon />, path: '/items' },
+    { text: 'Clients', icon: <PeopleIcon />, path: '/clients' },
+    { text: 'Suppliers', icon: <LocalShippingIcon />, path: '/suppliers' },
+    { text: 'Purchases', icon: <ShoppingCartIcon />, path: '/purchases' },
+    { text: 'Sales', icon: <AttachMoneyIcon />, path: '/sales' },
+    { text: 'Cash', icon: <AttachMoneyIcon />, path: '/cash' },
+    { text: 'Expenses', icon: <ReceiptIcon />, path: '/expenses' },
+    { text: 'Stock', icon: <StorageIcon />, path: '/stock' },
+    { text: 'Users', icon: <GroupIcon />, path: '/users' },
+  ];
 
   const drawer = (
     <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          ERP System
-        </Typography>
-      </Toolbar>
-      <Divider />
+      <Toolbar />
       <List>
         {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton onClick={() => handleNavigation(item.path)}>
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
+          <ListItem
+            button
+            key={item.text}
+            onClick={() => {
+              navigate(item.path);
+              setMobileOpen(false);
+            }}
+          >
+            <ListItemIcon>{item.icon}</ListItemIcon>
+            <ListItemText primary={item.text} />
           </ListItem>
         ))}
-      </List>
-      <Divider />
-      <List>
-        <ListItem disablePadding>
-          <ListItemButton onClick={handleLogout}>
-            <ListItemIcon>
-              <LogoutIcon />
-            </ListItemIcon>
-            <ListItemText primary="Logout" />
-          </ListItemButton>
+        <ListItem
+          button
+          onClick={() => {
+            logout();
+            navigate('/login');
+          }}
+        >
+          <ListItemText primary="Logout" />
         </ListItem>
       </List>
     </div>
@@ -118,12 +105,9 @@ const Layout: React.FC = () => {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {user?.fullName}
+          <Typography variant="h6" noWrap component="div">
+            ERP System
           </Typography>
-          <Button color="inherit" onClick={handleLogout}>
-            Logout
-          </Button>
         </Toolbar>
       </AppBar>
       <Box
@@ -170,7 +154,7 @@ const Layout: React.FC = () => {
         }}
       >
         <Toolbar />
-        <Outlet />
+        {children}
       </Box>
     </Box>
   );
